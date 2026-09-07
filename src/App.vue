@@ -1,15 +1,15 @@
 <script setup>
 import { ref, watch } from 'vue'
 
-
 const serviciosGuardados = localStorage.getItem('servicios-barberia')
 const servicios = ref(serviciosGuardados ? JSON.parse(serviciosGuardados) : [])
-
 
 watch(servicios, (nuevaLista) => {
   localStorage.setItem('servicios-barberia', JSON.stringify(nuevaLista))
 }, { deep: true })
 
+const hoy = new Date()
+const fechaHoy = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}`
 
 const preciosServicios = {
   'Corte clásico': 20000,
@@ -20,7 +20,6 @@ const preciosServicios = {
   'Tinte': 40000
 }
 
-
 const mostrarModal = ref(false)
 const modoEdicion = ref(false)
 const mostrarConfirmacion = ref(false)
@@ -28,8 +27,6 @@ const mostrarConfirmacion = ref(false)
 const idEliminar = ref(null)
 const idEditar = ref(null)
 const error = ref('')
-
-
 
 const cliente = ref('')
 const serviciosSeleccionados = ref([])
@@ -41,7 +38,18 @@ const metodoPago = ref('')
 const estadoPago = ref('')
 const observaciones = ref('')
 
+function formatearMoneda(valor) {
+  return new Intl.NumberFormat('es-CO', {
+    style: 'currency',
+    currency: 'COP',
+    minimumFractionDigits: 0
+  }).format(valor || 0)
+}
 
+function horaMinimaActual() {
+  const ahora = new Date()
+  return `${String(ahora.getHours()).padStart(2, '0')}:${String(ahora.getMinutes()).padStart(2, '0')}`
+}
 
 watch(serviciosSeleccionados, (nuevosServicios) => {
   const sumaTotal = nuevosServicios.reduce((total, servicio) => {
@@ -50,20 +58,16 @@ watch(serviciosSeleccionados, (nuevosServicios) => {
   precio.value = sumaTotal
 }, { deep: true })
 
-
-
 function abrirModal() {
   limpiarFormulario()
   modoEdicion.value = false
   mostrarModal.value = true
 }
 
-
 function cerrarModal() {
   mostrarModal.value = false
   limpiarFormulario()
 }
-
 
 function limpiarFormulario() {
   cliente.value = ''
@@ -79,26 +83,43 @@ function limpiarFormulario() {
   idEditar.value = null
 }
 
-
 function guardarServicio() {
   error.value = ''
+  const camposFaltantes = []
 
-  if (
-    !cliente.value.trim() ||
-    serviciosSeleccionados.value.length === 0 ||
-    !barbero.value ||
-    !fecha.value ||
-    !hora.value ||
-    precio.value === '' ||
-    !metodoPago.value ||
-    !estadoPago.value
-  ) {
-    error.value = 'Por favor complete todos los campos obligatorios y seleccione al menos un corte.'
+  if (!cliente.value.trim()) camposFaltantes.push('Nombre del cliente')
+  if (serviciosSeleccionados.value.length === 0) camposFaltantes.push('Corte / Servicios (seleccione al menos uno)')
+  if (!barbero.value) camposFaltantes.push('Barbero')
+  if (!fecha.value) camposFaltantes.push('Fecha')
+  if (!hora.value) camposFaltantes.push('Hora')
+  if (!metodoPago.value) camposFaltantes.push('Método de pago')
+  if (!estadoPago.value) camposFaltantes.push('Estado del pago')
+
+  if (camposFaltantes.length > 0) {
+    if (camposFaltantes.length === 1) {
+      error.value = `Falta completar el siguiente campo: ${camposFaltantes[0]}.`
+    } else {
+      error.value = `Faltan los siguientes campos por completar:\n• ${camposFaltantes.join('\n• ')}`
+    }
+    return
+  }
+
+  const ahora = new Date()
+  const fechaActualStr = `${ahora.getFullYear()}-${String(ahora.getMonth() + 1).padStart(2, '0')}-${String(ahora.getDate()).padStart(2, '0')}`
+  const horaActualStr = `${String(ahora.getHours()).padStart(2, '0')}:${String(ahora.getMinutes()).padStart(2, '0')}`
+
+  if (fecha.value < fechaActualStr) {
+    error.value = 'La fecha del servicio no puede ser anterior al día de hoy.'
+    return
+  }
+
+  if (fecha.value === fechaActualStr && hora.value < horaActualStr) {
+    error.value = 'La hora seleccionada ya transcurrió hoy. Ingresa una hora igual o posterior a la actual.'
     return
   }
 
   if (Number(precio.value) <= 0) {
-    error.value = 'El precio debe ser mayor a 0.'
+    error.value = 'El precio debe ser mayor a $0.'
     return
   }
 
@@ -139,8 +160,6 @@ function guardarServicio() {
   cerrarModal()
 }
 
-
-
 function calificarServicioPost(idServicio, nota) {
   const index = servicios.value.findIndex(s => s.id === idServicio)
   if (index !== -1) {
@@ -148,7 +167,6 @@ function calificarServicioPost(idServicio, nota) {
   }
 }
 
-// Editar servicio
 function editarServicio(servicio) {
   modoEdicion.value = true
   idEditar.value = servicio.id
@@ -166,7 +184,6 @@ function editarServicio(servicio) {
   mostrarModal.value = true
 }
 
-
 function preguntarEliminar(id) {
   idEliminar.value = id
   mostrarConfirmacion.value = true
@@ -183,7 +200,6 @@ function cancelarEliminar() {
   idEliminar.value = null
 }
 
-
 function totalServicios() {
   return servicios.value.length
 }
@@ -198,7 +214,6 @@ function totalPendiente() {
     .reduce((acc, s) => acc + Number(s.precio || 0), 0)
 }
 
-
 function iconoPago(metodo) {
   if (metodo === 'Efectivo') return '💵'
   if (metodo === 'Transferencia') return '📱'
@@ -212,21 +227,17 @@ function estrellas(numero) {
 </script>
 
 <template>
-
   <div class="app">
-
     <header>
       <div>
         <h1>✂️ Barbería Don Ramiro</h1>
-        <p>Registro de servicios</p>
+        <p>Registro de servicios 24/7</p>
       </div>
 
       <button @click="abrirModal">
         + Registrar servicio
       </button>
     </header>
-
-
 
     <section class="estadisticas">
       <div class="estadistica">
@@ -236,16 +247,14 @@ function estrellas(numero) {
 
       <div class="estadistica">
         <span>Ventas totales</span>
-        <h2>${{ totalVentas() }}</h2>
+        <h2>{{ formatearMoneda(totalVentas()) }}</h2>
       </div>
 
       <div class="estadistica pendiente">
         <span>Dinero pendiente</span>
-        <h2>${{ totalPendiente() }}</h2>
+        <h2>{{ formatearMoneda(totalPendiente()) }}</h2>
       </div>
     </section>
-
-
 
     <section class="contenedor">
       <h2>Servicios registrados</h2>
@@ -285,18 +294,13 @@ function estrellas(numero) {
             </span>
           </div>
 
-
-
           <div class="calificacion-caja">
             <span class="titulo-calificacion">Calificación del corte:</span>
 
-            <!-- Si ya fue calificado: Muestra las estrellas guardadas -->
             <div v-if="servicio.calificacion > 0" class="casilla-estrellas" :class="{ 'baja-calificacion': servicio.calificacion <= 2 }">
               <span class="estrellas-iconos">{{ estrellas(servicio.calificacion) }}</span>
               <span class="nota-numero">({{ servicio.calificacion }}/5)</span>
             </div>
-
-
 
             <div v-else class="estrellas-selector-post">
               <span
@@ -314,7 +318,7 @@ function estrellas(numero) {
           <div class="informacion">
             <p>👨‍💼 <b>Barbero:</b> {{ servicio.barbero }}</p>
             <p>📅 <b>Fecha:</b> {{ servicio.fecha }} | ⏰ <b>Hora:</b> {{ servicio.hora }}</p>
-            <p>💰 <b>Precio total:</b> ${{ servicio.precio }}</p>
+            <p>💰 <b>Precio total:</b> {{ formatearMoneda(servicio.precio) }}</p>
             <p>{{ iconoPago(servicio.metodoPago) }} {{ servicio.metodoPago }}</p>
 
             <p v-if="servicio.observaciones">
@@ -334,96 +338,130 @@ function estrellas(numero) {
       </div>
     </section>
 
-
+    <!-- MODAL REGISTRO / EDICIÓN -->
     <div v-show="mostrarModal" class="modal-fondo">
       <div class="modal">
 
         <div class="modal-header">
-          <h2>{{ modoEdicion ? 'Editar servicio' : 'Registrar servicio' }}</h2>
+          <h2>{{ modoEdicion ? '✏️ Editar servicio' : '✂️ Registrar servicio' }}</h2>
           <button class="cerrar" @click="cerrarModal">×</button>
         </div>
 
         <form @submit.prevent="guardarServicio">
-          <p v-if="error" class="error">{{ error }}</p>
-
-          <label>Nombre del cliente</label>
-          <input type="text" v-model="cliente" placeholder="Ej: Juan Pérez">
-
-          <label>Corte / Servicios realizados</label>
-          <div class="checkbox-group">
-            <label
-              v-for="(valorPrecio, nombreServicio) in preciosServicios"
-              :key="nombreServicio"
-              class="checkbox-item"
-            >
-              <input
-                type="checkbox"
-                :value="nombreServicio"
-                v-model="serviciosSeleccionados"
-              >
-              <span>{{ nombreServicio }} (${{ valorPrecio }})</span>
-            </label>
+          <div v-if="error" class="error">
+            <span class="error-icono">⚠️</span>
+            <p class="error-texto">{{ error }}</p>
           </div>
 
-          <label>Barbero</label>
-          <select v-model="barbero">
-            <option value="">Seleccione</option>
-            <option>Don Ramiro</option>
-            <option>Empleado 1</option>
-            <option>Empleado 2</option>
-          </select>
+          <div class="campo">
+            <label>Nombre del cliente <span class="obligatorio">*</span></label>
+            <input type="text" v-model="cliente" placeholder="Ej: Juan Pérez">
+          </div>
 
-          <label>Fecha</label>
-          <input type="date" v-model="fecha">
+          <div class="campo">
+            <label>Corte / Servicios realizados <span class="obligatorio">*</span></label>
+            <div class="checkbox-group">
+              <label
+                v-for="(valorPrecio, nombreServicio) in preciosServicios"
+                :key="nombreServicio"
+                class="checkbox-item"
+                :class="{ seleccionado: serviciosSeleccionados.includes(nombreServicio) }"
+              >
+                <input
+                  type="checkbox"
+                  :value="nombreServicio"
+                  v-model="serviciosSeleccionados"
+                >
+                <span>{{ nombreServicio }} <strong>({{ formatearMoneda(valorPrecio) }})</strong></span>
+              </label>
+            </div>
+          </div>
 
-          <label>Hora</label>
-          <input type="time" v-model="hora">
+          <div class="campo-doble">
+            <div class="campo">
+              <label>Barbero <span class="obligatorio">*</span></label>
+              <select v-model="barbero">
+                <option value="">Seleccione</option>
+                <option>Don Ramiro</option>
+                <option>Empleado 1</option>
+                <option>Empleado 2</option>
+              </select>
+            </div>
 
-          <label>Precio total</label>
-          <input type="number" v-model="precio" placeholder="Se calcula automáticamente">
+            <div class="campo">
+              <label>Precio total</label>
+              <div class="input-moneda">
+                <span>$</span>
+                <input type="text" :value="formatearMoneda(precio)" readonly class="input-precio-calculado">
+              </div>
+            </div>
+          </div>
 
-          <label>Método de pago</label>
-          <select v-model="metodoPago">
-            <option value="">Seleccione</option>
-            <option>Efectivo</option>
-            <option>Transferencia</option>
-            <option>Tarjeta</option>
-          </select>
+          <div class="campo-doble">
+            <div class="campo">
+              <label>Fecha <span class="obligatorio">*</span></label>
+              <input type="date" v-model="fecha" :min="fechaHoy">
+            </div>
 
-          <label>Estado del pago</label>
-          <select v-model="estadoPago">
-            <option value="">Seleccione</option>
-            <option>Pagado</option>
-            <option>Pendiente</option>
-            <option>Fiado</option>
-          </select>
+            <div class="campo">
+              <label>Hora <span class="obligatorio">*</span></label>
+              <input 
+                type="time" 
+                v-model="hora"
+                :min="fecha === fechaHoy ? horaMinimaActual() : null"
+              >
+            </div>
+          </div>
 
-          <label>Observaciones</label>
-          <textarea v-model="observaciones" placeholder="Observaciones opcionales..."></textarea>
+          <div class="campo-doble">
+            <div class="campo">
+              <label>Método de pago <span class="obligatorio">*</span></label>
+              <select v-model="metodoPago">
+                <option value="">Seleccione</option>
+                <option>Efectivo</option>
+                <option>Transferencia</option>
+                <option>Tarjeta</option>
+              </select>
+            </div>
+
+            <div class="campo">
+              <label>Estado del pago <span class="obligatorio">*</span></label>
+              <select v-model="estadoPago">
+                <option value="">Seleccione</option>
+                <option>Pagado</option>
+                <option>Pendiente</option>
+                <option>Fiado</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="campo">
+            <label>Observaciones</label>
+            <textarea v-model="observaciones" placeholder="Detalles o notas adicionales..."></textarea>
+          </div>
 
           <div class="acciones-formulario">
             <button type="button" class="cancelar" @click="cerrarModal">Cancelar</button>
-            <button type="submit">Guardar</button>
+            <button type="submit" class="guardar">Guardar servicio</button>
           </div>
         </form>
 
       </div>
     </div>
 
-    
+    <!-- MODAL CONFIRMACIÓN ELIMINACIÓN -->
     <div v-show="mostrarConfirmacion" class="modal-fondo">
       <div class="confirmacion">
         <h2>¿Eliminar servicio?</h2>
         <p>Esta acción eliminará el registro permanentemente.</p>
         <div>
-          <button @click="cancelarEliminar">Cancelar</button>
+          <button class="cancelar" @click="cancelarEliminar">Cancelar</button>
           <button class="eliminar" @click="eliminarServicio">Sí, eliminar</button>
         </div>
       </div>
     </div>
 
   </div>
-
 </template>
 
 <style>
@@ -434,71 +472,85 @@ function estrellas(numero) {
 }
 
 body {
-  background: #f4f4f4;
-  font-family: Arial, sans-serif;
+  background: #f4f6f8;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  color: #2c3e50;
 }
 
 .app {
   min-height: 100vh;
 }
 
-
 header {
-  background: #111;
+  background: #1a1a1a;
   color: white;
-  padding: 25px 8%;
+  padding: 22px 8%;
   display: flex;
   justify-content: space-between;
   align-items: center;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
 }
 
 header h1 {
-  font-size: 28px;
+  font-size: 26px;
+  letter-spacing: 0.5px;
 }
 
 header p {
-  color: #bbb;
-  margin-top: 5px;
+  color: #aaa;
+  margin-top: 4px;
+  font-size: 14px;
 }
 
-/* BOTONES */
 button {
   border: none;
-  padding: 10px 16px;
-  border-radius: 7px;
+  padding: 10px 18px;
+  border-radius: 8px;
   cursor: pointer;
   background: #d4a017;
   color: white;
-  font-weight: bold;
+  font-weight: 600;
+  font-size: 14px;
+  transition: all 0.2s ease;
 }
 
 button:hover {
-  opacity: 0.9;
+  background: #c29213;
+  transform: translateY(-1px);
 }
-
 
 .estadisticas {
   padding: 25px 8%;
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 15px;
+  gap: 18px;
 }
 
 .estadistica {
   background: white;
   padding: 20px;
-  border-radius: 10px;
+  border-radius: 12px;
   border-left: 5px solid #d4a017;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+}
+
+.estadistica span {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #666;
+  font-weight: 600;
 }
 
 .estadistica h2 {
-  margin-top: 10px;
+  margin-top: 8px;
+  font-size: 24px;
+  color: #1a1a1a;
 }
 
 .estadistica.pendiente {
   border-left-color: #e74c3c;
 }
-
 
 .contenedor {
   padding: 10px 8% 40px;
@@ -506,51 +558,56 @@ button:hover {
 
 .contenedor h2 {
   margin-bottom: 20px;
+  font-size: 22px;
 }
-
 
 .lista-servicios {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  grid-template-columns: repeat(3, 1fr);
   gap: 20px;
 }
 
 .tarjeta {
   background: white;
-  border-radius: 10px;
-  padding: 20px;
-  box-shadow: 0 3px 10px rgba(0,0,0,0.1);
-  border-left: 5px solid #333;
+  border-radius: 12px;
+  padding: 22px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+  border-left: 5px solid #2ecc71;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
 }
 
 .tarjetaPendiente {
-  border-left-color: orange;
+  border-left-color: #f39c12;
 }
 
 .tarjetaFiado {
-  border-left-color: red;
+  border-left-color: #e74c3c;
 }
 
 .tarjetaBaja {
-  background: #fff5f5;
+  background: #fff8f8;
 }
 
 .tarjeta-header {
   display: flex;
   justify-content: space-between;
-  margin-bottom: 10px;
+  align-items: flex-start;
+  margin-bottom: 12px;
 }
 
 .tarjeta-header h3 {
-  font-size: 20px;
+  font-size: 19px;
+  color: #111;
 }
 
 .corte-detalle {
   color: #555;
-  margin-top: 5px;
-  font-size: 15px;
+  margin-top: 6px;
+  font-size: 14px;
+  line-height: 1.4;
 }
-
 
 .calificacion-caja {
   margin: 12px 0;
@@ -558,38 +615,38 @@ button:hover {
 
 .titulo-calificacion {
   display: block;
-  font-weight: bold;
-  font-size: 14px;
+  font-weight: 600;
+  font-size: 13px;
   margin-bottom: 6px;
-  color: #222;
+  color: #444;
 }
 
 .estrellas-selector-post {
   display: flex;
   align-items: center;
   gap: 6px;
-  background: #fcfcfc;
-  border: 1px solid #d1d1d1;
+  background: #f8f9fa;
+  border: 1px solid #e2e8f0;
   border-radius: 8px;
   padding: 8px 12px;
 }
 
 .estrella-opcion-post {
-  font-size: 24px;
-  color: #ccc;
+  font-size: 22px;
+  color: #cbd5e1;
   cursor: pointer;
   transition: color 0.15s, transform 0.1s;
   user-select: none;
 }
 
 .estrella-opcion-post:hover {
-  color: #f39c12;
+  color: #f59e0b;
   transform: scale(1.2);
 }
 
 .indicacion-click {
-  font-size: 13px;
-  color: #777;
+  font-size: 12px;
+  color: #64748b;
   margin-left: 6px;
 }
 
@@ -597,77 +654,84 @@ button:hover {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: #fff8e1;
-  border: 1px solid #ffe082;
+  background: ghostwhite;
+  border: 1px solid #fde68a;
   padding: 6px 12px;
   border-radius: 6px;
 }
 
 .casilla-estrellas.baja-calificacion {
-  background: #ffebee;
-  border-color: #ffcdd2;
+  background: #fef2f2;
+  border-color: #fecaca;
 }
 
 .estrellas-iconos {
-  color: #f39c12;
-  font-size: 16px;
+  color: #f59e0b;
+  font-size: 15px;
   letter-spacing: 2px;
 }
 
 .nota-numero {
-  font-weight: bold;
-  font-size: 13px;
-  color: #444;
+  font-weight: 700;
+  font-size: 12px;
+  color: #475569;
 }
 
 .informacion p {
   margin: 8px 0;
+  font-size: 14px;
 }
 
-
-
 .pagado {
-  background: #d4edda;
-  color: #155724;
-  padding: 5px 8px;
-  border-radius: 5px;
-  font-size: 14px;
-  height: fit-content;
+  background: #d1fae5;
+  color: #065f46;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .pendiente {
-  background: #fff3cd;
-  color: #856404;
-  padding: 5px 8px;
-  border-radius: 5px;
-  font-size: 14px;
-  height: fit-content;
+  background: #fef3c7;
+  color: #92400e;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .fiado {
-  background: #f8d7da;
-  color: #721c24;
-  padding: 5px 8px;
-  border-radius: 5px;
-  font-size: 14px;
-  height: fit-content;
+  background: #fee2e2;
+  color: #991b1b;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 700;
 }
-
 
 .botones {
   display: flex;
   gap: 10px;
-  margin-top: 15px;
+  margin-top: 18px;
 }
 
 .editar {
-  background: #3498db;
+  background: #2563eb;
+  flex: 1;
+}
+
+.editar:hover {
+  background: #1d4ed8;
 }
 
 .eliminar {
-  background: #e74c3c;
+  background: #dc2626;
+  flex: 1;
 }
 
+.eliminar:hover {
+  background: #b91c1c;
+}
 
 .modal-fondo {
   position: fixed;
@@ -675,7 +739,8 @@ button:hover {
   left: 0;
   width: 100%;
   height: 100%;
-  background: rgba(0, 0, 0, 0.6);
+  background: rgba(15, 23, 42, 0.65);
+  backdrop-filter: blur(4px);
   display: flex;
   justify-content: center;
   align-items: center;
@@ -683,119 +748,233 @@ button:hover {
   z-index: 100;
 }
 
-.modal,
-.confirmacion {
+.modal {
   background: white;
   width: 100%;
-  max-width: 550px;
-  border-radius: 10px;
-  padding: 25px;
-  max-height: 90vh;
+  max-width: 580px;
+  border-radius: 16px;
+  padding: 28px;
+  max-height: 88vh;
   overflow-y: auto;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2);
 }
 
 .modal-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
+  margin-bottom: 22px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.modal-header h2 {
+  font-size: 20px;
+  color: #0f172a;
 }
 
 .cerrar {
   background: transparent;
-  color: #333;
-  font-size: 30px;
+  color: #64748b;
+  font-size: 28px;
   padding: 0;
   line-height: 1;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cerrar:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.campo {
+  margin-bottom: 16px;
+}
+
+.campo-doble {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
 }
 
 form label {
   display: block;
-  margin-top: 12px;
-  margin-bottom: 5px;
-  font-weight: bold;
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+  margin-bottom: 6px;
 }
 
-/* SELECCIÓN MÚLTIPLE (CHECKBOXES) */
-.checkbox-group {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 10px;
-  background: #f9f9f9;
-  padding: 12px;
-  border: 1px solid #ccc;
-  border-radius: 6px;
-}
-
-.checkbox-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: normal;
-  margin: 0;
-  cursor: pointer;
-}
-
-.checkbox-item input {
-  width: auto;
-  cursor: pointer;
+.obligatorio {
+  color: #e11d48;
 }
 
 input,
 select,
 textarea {
   width: 100%;
-  padding: 10px;
-  border: 1px solid #ccc;
+  padding: 10px 14px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #1e293b;
+  background-color: #fff;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: #d4a017;
+  box-shadow: 0 0 0 3px rgba(212, 160, 23, 0.18);
+}
+
+.input-moneda {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.input-precio-calculado {
+  background-color: #f8fafc;
+  font-weight: bold;
+  color: #0f172a;
+}
+
+.checkbox-group {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 8px;
+  background: #f8fafc;
+  padding: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+}
+
+.checkbox-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  padding: 8px 10px;
   border-radius: 6px;
+  background: white;
+  border: 1px solid #cbd5e1;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.checkbox-item:hover {
+  border-color: #d4a017;
+}
+
+.checkbox-item.seleccionado {
+  background: #fefce8;
+  border-color: #d4a017;
+}
+
+.checkbox-item input {
+  width: 16px;
+  height: 16px;
+  accent-color: #d4a017;
+  cursor: pointer;
 }
 
 textarea {
-  min-height: 80px;
+  min-height: 75px;
   resize: vertical;
 }
 
 .error {
-  background: #f8d7da;
-  color: #721c24;
-  padding: 10px;
-  border-radius: 5px;
-  margin-bottom: 10px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin-bottom: 18px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.error-icono {
+  font-size: 16px;
+  margin-top: 1px;
+}
+
+.error-texto {
+  font-size: 13px;
+  white-space: pre-line;
+  line-height: 1.5;
+  font-weight: 500;
 }
 
 .acciones-formulario {
   display: flex;
+  justify-content: flex-end;
   gap: 10px;
-  margin-top: 20px;
+  margin-top: 24px;
+  padding-top: 14px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.guardar {
+  background: #d4a017;
+}
+
+.guardar:hover {
+  background: #c29213;
 }
 
 .cancelar {
-  background: #777;
+  background: #e2e8f0;
+  color: #475569;
+}
+
+.cancelar:hover {
+  background: #cbd5e1;
+  color: #0f172a;
 }
 
 .confirmacion {
+  background: white;
+  width: 100%;
+  max-width: 420px;
+  border-radius: 14px;
+  padding: 24px;
   text-align: center;
 }
 
 .confirmacion p {
-  margin: 15px 0;
+  margin: 14px 0 22px;
+  color: #64748b;
+  font-size: 14px;
 }
 
 .confirmacion div {
   display: flex;
   justify-content: center;
-  gap: 10px;
+  gap: 12px;
 }
-
 
 .sin-servicios {
   text-align: center;
   background: white;
   padding: 50px;
-  border-radius: 10px;
+  border-radius: 12px;
 }
 
-
+@media (max-width: 992px) {
+  .lista-servicios {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
 
 @media (max-width: 600px) {
   header {
@@ -805,6 +984,14 @@ textarea {
   }
 
   .estadisticas {
+    grid-template-columns: 1fr;
+  }
+
+  .campo-doble {
+    grid-template-columns: 1fr;
+  }
+
+  .lista-servicios {
     grid-template-columns: 1fr;
   }
 }
