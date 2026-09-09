@@ -8,15 +8,12 @@ watch(servicios, (nuevaLista) => {
   localStorage.setItem('servicios-barberia', JSON.stringify(nuevaLista))
 }, { deep: true })
 
-const hoy = new Date()
-const fechaHoy = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}`
-
 const preciosServicios = {
-  'Corte clásico': 20000,
-  'Corte moderno': 25000,
-  'Barba': 15000,
-  'Corte + barba': 35000,
-  'Cejas': 8000,
+  'Corte': 20000,
+  'Corte con tijera': 25000,
+  'Barba': 10000,
+  'limpieza facial': 60000,
+  'Cejas': 5000,
   'Tinte': 40000
 }
 
@@ -38,17 +35,36 @@ const metodoPago = ref('')
 const estadoPago = ref('')
 const observaciones = ref('')
 
+function obtenerFechaHoy() {
+  const hoy = new Date()
+  return `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}`
+}
+
+function obtenerHoraActual() {
+  const ahora = new Date()
+  return `${String(ahora.getHours()).padStart(2, '0')}:${String(ahora.getMinutes()).padStart(2, '0')}`
+}
+
+function validarHora() {
+  if (!fecha.value || !hora.value) return
+
+  const fechaActual = obtenerFechaHoy()
+  const horaActual = obtenerHoraActual()
+
+  if (fecha.value === fechaActual && hora.value < horaActual) {
+    error.value = 'La hora seleccionada ya transcurrió hoy. Ingrese una hora igual o posterior a la actual.'
+    hora.value = ''
+  } else if (error.value.includes('hora')) {
+    error.value = ''
+  }
+}
+
 function formatearMoneda(valor) {
   return new Intl.NumberFormat('es-CO', {
     style: 'currency',
     currency: 'COP',
     minimumFractionDigits: 0
   }).format(valor || 0)
-}
-
-function horaMinimaActual() {
-  const ahora = new Date()
-  return `${String(ahora.getHours()).padStart(2, '0')}:${String(ahora.getMinutes()).padStart(2, '0')}`
 }
 
 watch(serviciosSeleccionados, (nuevosServicios) => {
@@ -85,28 +101,38 @@ function limpiarFormulario() {
 
 function guardarServicio() {
   error.value = ''
-  const camposFaltantes = []
 
-  if (!cliente.value.trim()) camposFaltantes.push('Nombre del cliente')
-  if (serviciosSeleccionados.value.length === 0) camposFaltantes.push('Corte / Servicios (seleccione al menos uno)')
-  if (!barbero.value) camposFaltantes.push('Barbero')
-  if (!fecha.value) camposFaltantes.push('Fecha')
-  if (!hora.value) camposFaltantes.push('Hora')
-  if (!metodoPago.value) camposFaltantes.push('Método de pago')
-  if (!estadoPago.value) camposFaltantes.push('Estado del pago')
-
-  if (camposFaltantes.length > 0) {
-    if (camposFaltantes.length === 1) {
-      error.value = `Falta completar el siguiente campo: ${camposFaltantes[0]}.`
-    } else {
-      error.value = `Faltan los siguientes campos por completar:\n• ${camposFaltantes.join('\n• ')}`
-    }
+  if (!cliente.value.trim()) {
+    error.value = 'Por favor, ingrese el nombre del cliente.'
+    return
+  }
+  if (serviciosSeleccionados.value.length === 0) {
+    error.value = 'Por favor, seleccione al menos un corte o servicio.'
+    return
+  }
+  if (!barbero.value) {
+    error.value = 'Por favor, seleccione un barbero.'
+    return
+  }
+  if (!fecha.value) {
+    error.value = 'Por favor, seleccione la fecha.'
+    return
+  }
+  if (!hora.value) {
+    error.value = 'Por favor, seleccione la hora.'
+    return
+  }
+  if (!metodoPago.value) {
+    error.value = 'Por favor, seleccione el método de pago.'
+    return
+  }
+  if (!estadoPago.value) {
+    error.value = 'Por favor, seleccione el estado del pago.'
     return
   }
 
-  const ahora = new Date()
-  const fechaActualStr = `${ahora.getFullYear()}-${String(ahora.getMonth() + 1).padStart(2, '0')}-${String(ahora.getDate()).padStart(2, '0')}`
-  const horaActualStr = `${String(ahora.getHours()).padStart(2, '0')}:${String(ahora.getMinutes()).padStart(2, '0')}`
+  const fechaActualStr = obtenerFechaHoy()
+  const horaActualStr = obtenerHoraActual()
 
   if (fecha.value < fechaActualStr) {
     error.value = 'La fecha del servicio no puede ser anterior al día de hoy.'
@@ -115,6 +141,7 @@ function guardarServicio() {
 
   if (fecha.value === fechaActualStr && hora.value < horaActualStr) {
     error.value = 'La hora seleccionada ya transcurrió hoy. Ingresa una hora igual o posterior a la actual.'
+    hora.value = ''
     return
   }
 
@@ -311,7 +338,7 @@ function estrellas(numero) {
               >
                 ★
               </span>
-              <span class="indicacion-click">(Haz clic en una estrella)</span>
+              <span class="indicacion-click"></span>
             </div>
           </div>
 
@@ -355,7 +382,7 @@ function estrellas(numero) {
 
           <div class="campo">
             <label>Nombre del cliente <span class="obligatorio">*</span></label>
-            <input type="text" v-model="cliente" placeholder="Ej: Juan Pérez">
+            <input type="text" v-model="cliente" placeholder>
           </div>
 
           <div class="campo">
@@ -383,8 +410,8 @@ function estrellas(numero) {
               <select v-model="barbero">
                 <option value="">Seleccione</option>
                 <option>Don Ramiro</option>
-                <option>Empleado 1</option>
-                <option>Empleado 2</option>
+                <option>Gemelo</option>
+                <option>Romeo</option>
               </select>
             </div>
 
@@ -400,7 +427,12 @@ function estrellas(numero) {
           <div class="campo-doble">
             <div class="campo">
               <label>Fecha <span class="obligatorio">*</span></label>
-              <input type="date" v-model="fecha" :min="fechaHoy">
+              <input 
+                type="date" 
+                v-model="fecha" 
+                :min="obtenerFechaHoy()"
+                @change="validarHora"
+              >
             </div>
 
             <div class="campo">
@@ -408,7 +440,9 @@ function estrellas(numero) {
               <input 
                 type="time" 
                 v-model="hora"
-                :min="fecha === fechaHoy ? horaMinimaActual() : null"
+                :min="fecha === obtenerFechaHoy() ? obtenerHoraActual() : null"
+                @input="validarHora"
+                @change="validarHora"
               >
             </div>
           </div>
