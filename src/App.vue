@@ -1,12 +1,12 @@
 <script setup>
-import { ref, watch } from 'vue'
+import { ref } from 'vue'
 
 const serviciosGuardados = localStorage.getItem('servicios-barberia')
 const servicios = ref(serviciosGuardados ? JSON.parse(serviciosGuardados) : [])
 
-watch(servicios, (nuevaLista) => {
-  localStorage.setItem('servicios-barberia', JSON.stringify(nuevaLista))
-}, { deep: true })
+function persistirDatos() {
+  localStorage.setItem('servicios-barberia', JSON.stringify(servicios.value))
+}
 
 const preciosServicios = {
   'Corte': 20000,
@@ -30,10 +30,16 @@ const serviciosSeleccionados = ref([])
 const barbero = ref('')
 const fecha = ref('')
 const hora = ref('')
-const precio = ref('')
 const metodoPago = ref('')
 const estadoPago = ref('')
 const observaciones = ref('')
+
+// Función normal para calcular el precio actual de los servicios seleccionados
+function calcularPrecioActual() {
+  return serviciosSeleccionados.value.reduce((total, servicio) => {
+    return total + (preciosServicios[servicio] || 0)
+  }, 0)
+}
 
 function obtenerFechaHoy() {
   const hoy = new Date()
@@ -67,13 +73,6 @@ function formatearMoneda(valor) {
   }).format(valor || 0)
 }
 
-watch(serviciosSeleccionados, (nuevosServicios) => {
-  const sumaTotal = nuevosServicios.reduce((total, servicio) => {
-    return total + (preciosServicios[servicio] || 0)
-  }, 0)
-  precio.value = sumaTotal
-}, { deep: true })
-
 function abrirModal() {
   limpiarFormulario()
   modoEdicion.value = false
@@ -91,7 +90,6 @@ function limpiarFormulario() {
   barbero.value = ''
   fecha.value = ''
   hora.value = ''
-  precio.value = ''
   metodoPago.value = ''
   estadoPago.value = ''
   observaciones.value = ''
@@ -145,7 +143,8 @@ function guardarServicio() {
     return
   }
 
-  if (Number(precio.value) <= 0) {
+  const precioFinal = calcularPrecioActual()
+  if (precioFinal <= 0) {
     error.value = 'El precio debe ser mayor a $0.'
     return
   }
@@ -161,7 +160,7 @@ function guardarServicio() {
       barbero: barbero.value,
       fecha: fecha.value,
       hora: hora.value,
-      precio: Number(precio.value),
+      precio: precioFinal,
       metodoPago: metodoPago.value,
       estadoPago: estadoPago.value,
       observaciones: observaciones.value.trim()
@@ -176,7 +175,7 @@ function guardarServicio() {
         barbero: barbero.value,
         fecha: fecha.value,
         hora: hora.value,
-        precio: Number(precio.value),
+        precio: precioFinal,
         metodoPago: metodoPago.value,
         estadoPago: estadoPago.value,
         observaciones: observaciones.value.trim()
@@ -184,6 +183,7 @@ function guardarServicio() {
     }
   }
 
+  persistirDatos()
   cerrarModal()
 }
 
@@ -191,6 +191,7 @@ function calificarServicioPost(idServicio, nota) {
   const index = servicios.value.findIndex(s => s.id === idServicio)
   if (index !== -1) {
     servicios.value[index].calificacion = nota
+    persistirDatos()
   }
 }
 
@@ -203,7 +204,6 @@ function editarServicio(servicio) {
   barbero.value = servicio.barbero
   fecha.value = servicio.fecha || ''
   hora.value = servicio.hora || ''
-  precio.value = servicio.precio
   metodoPago.value = servicio.metodoPago
   estadoPago.value = servicio.estadoPago
   observaciones.value = servicio.observaciones || ''
@@ -218,6 +218,7 @@ function preguntarEliminar(id) {
 
 function eliminarServicio() {
   servicios.value = servicios.value.filter(s => s.id !== idEliminar.value)
+  persistirDatos()
   mostrarConfirmacion.value = false
   idEliminar.value = null
 }
@@ -382,7 +383,7 @@ function estrellas(numero) {
 
           <div class="campo">
             <label>Nombre del cliente <span class="obligatorio">*</span></label>
-            <input type="text" v-model="cliente" placeholder>
+            <input type="text" v-model="cliente" placeholder="">
           </div>
 
           <div class="campo">
@@ -419,7 +420,7 @@ function estrellas(numero) {
               <label>Precio total</label>
               <div class="input-moneda">
                 <span>$</span>
-                <input type="text" :value="formatearMoneda(precio)" readonly class="input-precio-calculado">
+                <input type="text" :value="formatearMoneda(calcularPrecioActual())" readonly class="input-precio-calculado">
               </div>
             </div>
           </div>
@@ -499,6 +500,7 @@ function estrellas(numero) {
 </template>
 
 <style>
+/* Los estilos se mantienen intactos */
 * {
   box-sizing: border-box;
   margin: 0;
